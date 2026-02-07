@@ -1,18 +1,33 @@
-import { sql } from "drizzle-orm";
-import { pgTable, text, varchar } from "drizzle-orm/pg-core";
+
+import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
+// === TABLE DEFINITIONS ===
+export const storyProgress = pgTable("story_progress", {
+  id: serial("id").primaryKey(),
+  sessionId: text("session_id").notNull(), // Frontend generates a UUID for the session
+  currentChapter: integer("current_chapter").default(0), // 0: Start, 1: Minigame, 2: Voice, 3: Clues, 4: Finale
+  minigameAttempts: integer("minigame_attempts").default(0),
+  cluesFound: text("clues_found").array().default([]), // IDs of clues found
+  isComplete: boolean("is_complete").default(false),
+  lastUpdated: timestamp("last_updated").defaultNow(),
 });
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
+// === SCHEMAS ===
+export const insertProgressSchema = createInsertSchema(storyProgress).omit({ 
+  id: true, 
+  lastUpdated: true 
 });
 
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
+export const updateProgressSchema = insertProgressSchema.partial();
+
+// === TYPES ===
+export type StoryProgress = typeof storyProgress.$inferSelect;
+export type InsertStoryProgress = z.infer<typeof insertProgressSchema>;
+export type UpdateStoryProgress = z.infer<typeof updateProgressSchema>;
+
+// Password verification type
+export const verifyPasswordSchema = z.object({
+  password: z.string().min(1),
+});

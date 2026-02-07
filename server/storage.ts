@@ -1,38 +1,45 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
 
-// modify the interface with any CRUD methods
-// you might need
+import { db } from "./db";
+import { eq } from "drizzle-orm";
+import { 
+  storyProgress, 
+  type StoryProgress, 
+  type InsertStoryProgress, 
+  type UpdateStoryProgress 
+} from "@shared/schema";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  // Story Progress
+  getProgress(sessionId: string): Promise<StoryProgress | undefined>;
+  createProgress(progress: InsertStoryProgress): Promise<StoryProgress>;
+  updateProgress(sessionId: string, updates: UpdateStoryProgress): Promise<StoryProgress>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-
-  constructor() {
-    this.users = new Map();
+export class DatabaseStorage implements IStorage {
+  async getProgress(sessionId: string): Promise<StoryProgress | undefined> {
+    const [progress] = await db
+      .select()
+      .from(storyProgress)
+      .where(eq(storyProgress.sessionId, sessionId));
+    return progress;
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async createProgress(insertProgress: InsertStoryProgress): Promise<StoryProgress> {
+    const [progress] = await db
+      .insert(storyProgress)
+      .values(insertProgress)
+      .returning();
+    return progress;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async updateProgress(sessionId: string, updates: UpdateStoryProgress): Promise<StoryProgress> {
+    const [updated] = await db
+      .update(storyProgress)
+      .set({ ...updates, lastUpdated: new Date() })
+      .where(eq(storyProgress.sessionId, sessionId))
+      .returning();
+    return updated;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
